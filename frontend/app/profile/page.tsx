@@ -70,7 +70,7 @@ export default function ProfilePage() {
   ));
 
   // Calculate credit limit progression
-  const creditHistory = [];
+  const creditHistory: number[] = [];
   let currentLimit = CONSTANTS.INITIAL_CREDIT_LIMIT;
   for (let i = 0; i <= loanData.loanCount; i++) {
     creditHistory.push(currentLimit);

@@ -47,7 +47,10 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       const authResult = await authenticateUser(nonce);
 
       if (!authResult.success) {
-        setError(authResult.error || "Authentication failed");
+        const errorMsg = typeof authResult.error === "string"
+          ? authResult.error
+          : authResult.error?.message || "Authentication failed";
+        setError(errorMsg);
         setIsLoading(false);
         return;
       }
