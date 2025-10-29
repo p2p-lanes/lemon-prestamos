@@ -12,6 +12,28 @@ import {
 } from "@lemoncash/mini-app-sdk";
 import { ACTIVE_NETWORK } from "./contracts";
 
+// Debug logging helper
+async function debugLog(level: "info" | "warn" | "error", message: string, data?: any) {
+  try {
+    // Log to console for local debugging
+    console.log(`[${level.toUpperCase()}] ${message}`, data || '');
+
+    // Send to backend for Vercel logs
+    await fetch("/api/debug/log", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        level,
+        message,
+        data,
+        timestamp: new Date().toISOString()
+      })
+    }).catch(err => console.error("Failed to send log to backend:", err));
+  } catch (error) {
+    console.error("Debug log error:", error);
+  }
+}
+
 // Check if running in Lemon app
 export function isLemonApp(): boolean {
   return isWebView();
@@ -61,6 +83,17 @@ export async function callContract(params: {
   functionParams: (string | number)[];
   value?: string;
 }) {
+  const requestData = {
+    contractAddress: params.contractAddress,
+    functionName: params.functionName,
+    functionParams: params.functionParams,
+    value: params.value || "0",
+    chainId: ACTIVE_NETWORK.chainId,
+    network: ACTIVE_NETWORK.name
+  };
+
+  await debugLog("info", "🚀 Calling smart contract", requestData);
+
   try {
     const result = await callSmartContract({
       contractAddress: params.contractAddress as `0x${string}`,
@@ -70,7 +103,15 @@ export async function callContract(params: {
       chainId: ACTIVE_NETWORK.chainId as ChainId,
     });
 
+    await debugLog("info", "📦 Lemon SDK Result", {
+      resultType: result.result,
+      fullResult: result
+    });
+
     if (result.result === TransactionResult.SUCCESS) {
+      await debugLog("info", "✅ Transaction successful", {
+        txHash: result.data.txHash
+      });
       return {
         success: true,
         txHash: result.data.txHash,
@@ -78,17 +119,30 @@ export async function callContract(params: {
     }
 
     if (result.result === TransactionResult.CANCELLED) {
+      await debugLog("warn", "❌ User cancelled transaction", {});
       return {
         success: false,
         error: "User cancelled transaction",
       };
     }
 
+    await debugLog("error", "❌ Transaction failed", {
+      errorObject: result.error,
+      errorMessage: result.error?.message,
+      errorCode: result.error?.code,
+      fullError: JSON.stringify(result.error)
+    });
+
     return {
       success: false,
       error: result.error?.message || "Transaction failed",
     };
   } catch (error) {
+    await debugLog("error", "💥 Exception in callContract", {
+      errorMessage: error instanceof Error ? error.message : "Unknown error",
+      errorStack: error instanceof Error ? error.stack : undefined,
+      errorObject: error
+    });
     console.error("Contract call error:", error);
     return {
       success: false,

@@ -40,12 +40,44 @@ export default function HomePage() {
     : "0.00";
 
   const handleBorrow = async () => {
+    // Log borrow attempt
+    await fetch("/api/debug/log", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        level: "info",
+        message: "💰 User initiated borrow",
+        data: {
+          borrowAmountInput: borrowAmount,
+          creditAvailable: formatUSDT(creditAvailable),
+          creditLimit: formatUSDT(loanData.creditLimit)
+        }
+      })
+    }).catch(console.error);
+
     if (!borrowAmount || parseFloat(borrowAmount) <= 0) {
       setTxResult({ success: false, message: "Please enter a valid amount" });
       return;
     }
 
     const amountBigInt = parseUSDT(borrowAmount);
+
+    // Log parsed amount
+    await fetch("/api/debug/log", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        level: "info",
+        message: "📊 Amount parsed",
+        data: {
+          borrowAmountString: borrowAmount,
+          amountBigInt: amountBigInt.toString(),
+          creditAvailable: creditAvailable.toString(),
+          exceeds: amountBigInt > creditAvailable
+        }
+      })
+    }).catch(console.error);
+
     if (amountBigInt > creditAvailable) {
       setTxResult({ success: false, message: "Amount exceeds available credit" });
       return;
@@ -56,6 +88,21 @@ export default function HomePage() {
       setTxResult(null);
 
       const result = await borrowUSDT(amountBigInt.toString());
+
+      // Log result
+      await fetch("/api/debug/log", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          level: result.success ? "info" : "error",
+          message: result.success ? "✅ Borrow result: SUCCESS" : "❌ Borrow result: FAILED",
+          data: {
+            success: result.success,
+            txHash: result.success ? result.txHash : undefined,
+            error: !result.success ? result.error : undefined
+          }
+        })
+      }).catch(console.error);
 
       if (result.success) {
         setTxResult({
@@ -75,6 +122,20 @@ export default function HomePage() {
         });
       }
     } catch (error) {
+      // Log exception
+      await fetch("/api/debug/log", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          level: "error",
+          message: "💥 Exception in handleBorrow",
+          data: {
+            errorMessage: error instanceof Error ? error.message : "Unknown error",
+            errorStack: error instanceof Error ? error.stack : undefined
+          }
+        })
+      }).catch(console.error);
+
       setTxResult({
         success: false,
         message: error instanceof Error ? error.message : "Unknown error"
